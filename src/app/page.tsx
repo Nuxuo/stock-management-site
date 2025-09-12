@@ -1,103 +1,114 @@
-import Image from "next/image";
+// src/app/page.tsx
+"use client"
+
+import React, { useState, useEffect } from 'react';
+import { Category, CategorySlug } from '@/lib/types';
+import { usePersistentState } from '@/lib/hooks';
+import { Separator } from "@/components/ui/separator";
+import { iconMap } from '@/lib/icons';
+import { CategorySelector } from '@/components/data_viz/CategorySelector';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+// Import all the tab components
+import DashboardTab from '@/components/data_viz/tabs/DashboardTab';
+import MarketsTab from '@/components/data_viz/tabs/MarketsTab';
+import AnalysisTab from '@/components/data_viz/tabs/AnalysisTab';
+import NewsTab from '@/components/data_viz/tabs/NewsTab';
+import StocksTab from '@/components/data_viz/tabs/StockTab';
+import ClimateTab from '@/components/data_viz/tabs/ClimateTab';
+
+const CACHE_TTL_MINUTES = 15;
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [categories, setCategories] = usePersistentState<Category[]>('categories_cache_stocks', [], CACHE_TTL_MINUTES);
+  const [activeCategory, setActiveCategory] = useState<CategorySlug>('dashboard');
+  const [activeSubCategory, setActiveSubCategory] = useState<string>('overview');
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const [loading, setLoading] = useState({ categories: true });
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const staticCategories: Category[] = [
+      { id: '1', slug: 'dashboard', title: 'Dashboard', icon: 'Home', color: '#3b82f6', description: 'Your personal stock overview.', subCategories: { overview: "Overview", portfolio: "Portfolio", watchlist: "Watchlist" } },
+      { id: '2', slug: 'markets', title: 'Markets', icon: 'Globe', color: '#22c55e', description: "Get a pulse on the market.", subCategories: { overview: "Overview", indices: "Indices", sectors: "Sectors" } },
+      { id: '3', slug: 'analysis', title: 'Analysis', icon: 'Sliders', color: '#f97316', description: 'Tools for stock analysis.', subCategories: { screener: "Screener", heatmap: "Heatmap", "top-movers": "Top Movers" } },
+      { id: '4', slug: 'news', title: 'News', icon: 'Newspaper', color: '#eab308', description: 'The latest financial news.', subCategories: { "top-stories": "Top Stories", "my-feed": "My Feed", "watchlist-news": "Watchlist News" } },
+      { id: '5', slug: 'stocks', title: 'Stocks', icon: 'Search', color: '#8b5cf6', description: 'Search for a specific stock.', subCategories: { overview: "Overview", charts: "Charts", news: "News" } },
+    ];
+    setCategories(staticCategories);
+    setLoading(prev => ({ ...prev, categories: false }));
+  }, [setCategories]);
+
+  const activeCategoryData = categories.find(c => c.slug === activeCategory);
+
+  const handleSelectCategory = (slug: CategorySlug) => {
+    setActiveCategory(slug);
+    const firstSubCategory = Object.keys(categories.find(c => c.slug === slug)?.subCategories || {})[0];
+    setActiveSubCategory(firstSubCategory || 'overview');
+  }
+
+  const renderActiveTab = () => {
+    if (!activeCategoryData) return null;
+    switch (activeCategory) {
+      case 'dashboard':
+        return <DashboardTab activeSubCategory={activeSubCategory} onSubCategoryChange={setActiveSubCategory} activeCategoryData={activeCategoryData} />;
+      case 'markets':
+        return <MarketsTab activeSubCategory={activeSubCategory} onSubCategoryChange={setActiveSubCategory} activeCategoryData={activeCategoryData} />;
+      case 'analysis':
+        return <AnalysisTab activeSubCategory={activeSubCategory} onSubCategoryChange={setActiveSubCategory} activeCategoryData={activeCategoryData} />;
+      case 'news':
+        return <NewsTab activeSubCategory={activeSubCategory} onSubCategoryChange={setActiveSubCategory} activeCategoryData={activeCategoryData} />;
+      case 'stocks':
+        return <StocksTab activeSubCategory={activeSubCategory} onSubCategoryChange={setActiveSubCategory} activeCategoryData={activeCategoryData} />;
+      default:
+        return null;
+    }
+  }
+
+  if (loading.categories && categories.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(to right, #171717 0%, #171717 100%)' }}>
+        <p className="text-white">Loading Stock Viewer...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-red-900/20">
+        <p className="text-red-400 text-center px-4">Error: {error}<br />Please check the console.</p>
+      </div>
+    );
+  }
+
+  if (!activeCategoryData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(to right, #171717 0%, #171717 100%)' }}>
+        <p className="text-white">No category data available.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen" style={{ background: 'linear-gradient(to right, #171717 0%, #171717 100%)' }}>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <CategorySelector categories={categories} activeCategory={activeCategory} onSelectCategory={handleSelectCategory} />
+
+        <div className="relative mb-8">
+          <Separator className="bg-zinc-800" />
+          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 px-4 bg-[#171717]">
+            <div className="flex items-center gap-2">
+              <div style={{ color: activeCategoryData.color }}>{iconMap[activeCategoryData.icon]}</div>
+              <span className="text-sm font-medium text-gray-400">{activeCategoryData.title}</span>
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        <div className="mb-6">
+          {renderActiveTab()}
+        </div>
+      </div>
     </div>
-  );
+  )
 }
