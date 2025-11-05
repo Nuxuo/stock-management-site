@@ -2,12 +2,10 @@
 "use client";
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { StockData, Category } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const availableStocks = [
     { ticker: 'AAPL', name: 'Apple Inc.' },
@@ -25,21 +23,6 @@ const availableStocks = [
     { ticker: 'PG', name: 'Procter & Gamble Co.' },
     { ticker: 'UNH', name: 'UnitedHealth Group Inc.' },
     { ticker: 'HD', name: 'Home Depot Inc.' },
-];
-
-const mockChartData = [
-    { month: 'Jan', price: 170 },
-    { month: 'Feb', price: 180 },
-    { month: 'Mar', price: 175 },
-    { month: 'Apr', price: 185 },
-    { month: 'May', price: 190 },
-    { month: 'Jun', price: 195 },
-];
-
-const mockStockNews = [
-    { id: 1, title: "Apple's Vision Pro sees strong initial demand, but challenges remain.", source: 'Reuters', time: '2h ago' },
-    { id: 2, title: "New AI features coming to iPhone in next iOS update.", source: 'The Verge', time: '5h ago' },
-    { id: 3, title: "Analysts raise Apple's price target on strong services growth.", source: 'Bloomberg', time: '1d ago' },
 ];
 
 
@@ -70,7 +53,7 @@ const formatLargeNumber = (num: number | null | undefined) => {
 };
 
 
-const StocksTab = ({ activeSubCategory, onSubCategoryChange, activeCategoryData }: { activeSubCategory: string, onSubCategoryChange: (value: string) => void, activeCategoryData: Category }) => {
+const StocksTab = ({ activeCategoryData }: { activeCategoryData: Category }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchedStock, setSearchedStock] = useState<string | null>('AAPL'); // Default to AAPL
     const [stockData, setStockData] = useState<StockData | null>(null);
@@ -239,66 +222,15 @@ const StocksTab = ({ activeSubCategory, onSubCategoryChange, activeCategoryData 
                         exit={{ opacity: 0, y: -20 }}
                         transition={{ duration: 0.3 }}
                     >
-                        <Tabs value={activeSubCategory} onValueChange={onSubCategoryChange} className="w-full mt-6">
-                            <TabsList className="grid w-full grid-cols-3 bg-[#1c1c1c]">
-                                <TabsTrigger value="overview">Overview</TabsTrigger>
-                                <TabsTrigger value="charts">Charts</TabsTrigger>
-                                <TabsTrigger value="news">News</TabsTrigger>
-                            </TabsList>
-                            <TabsContent value="overview">
-                                <Card className="border-zinc-800 mt-6" style={{ background: `linear-gradient(135deg, ${activeCategoryData.color}10 0%, #1c1c1c 100%)` }}>
-                                    <CardHeader>
-                                        <CardTitle className="text-white flex items-center gap-2 text-lg">Overview for {searchedStock}</CardTitle>
-                                        <CardDescription className="text-gray-400 text-xs">Previous trading day's data for {searchedStock}.</CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                        {renderOverviewContent()}
-                                    </CardContent>
-                                </Card>
-                            </TabsContent>
-                            <TabsContent value="charts">
-                                <Card className="border-zinc-800 mt-6" style={{ background: `linear-gradient(135deg, ${activeCategoryData.color}10 0%, #1c1c1c 100%)` }}>
-                                    <CardHeader>
-                                        <CardTitle className="text-white flex items-center gap-2 text-lg">Price Chart for {searchedStock}</CardTitle>
-                                        <CardDescription className="text-gray-400 text-xs">6-month price history for {searchedStock}.</CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <ResponsiveContainer width="100%" height={300}>
-                                            <BarChart data={mockChartData}>
-                                                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2}/>
-                                                <XAxis dataKey="month" stroke="#888888" />
-                                                <YAxis stroke="#888888" />
-                                                <Tooltip contentStyle={{ backgroundColor: '#1c1c1c', border: '1px solid #333' }}/>
-                                                <Legend />
-                                                <Bar dataKey="price" fill={activeCategoryData.color} />
-                                            </BarChart>
-                                        </ResponsiveContainer>
-                                    </CardContent>
-                                </Card>
-                            </TabsContent>
-                            <TabsContent value="news">
-                                <Card className="border-zinc-800 mt-6" style={{ background: `linear-gradient(135deg, ${activeCategoryData.color}10 0%, #1c1c1c 100%)` }}>
-                                    <CardHeader>
-                                        <CardTitle className="text-white flex items-center gap-2 text-lg">News for {searchedStock}</CardTitle>
-                                        <CardDescription className="text-gray-400 text-xs">Latest news related to {searchedStock}.</CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                    <div className="space-y-3">
-                                        {mockStockNews.map(item => (
-                                            <div key={item.id} className="p-3 rounded-lg bg-zinc-900/30 border border-zinc-800/50">
-                                                <h4 className="text-sm font-semibold text-white mb-1">{item.title}</h4>
-                                                <div className="flex items-center gap-2 text-xs text-gray-500">
-                                                    <span>{item.source}</span>
-                                                    <span>•</span>
-                                                    <span>{item.time}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    </CardContent>
-                                </Card>
-                            </TabsContent>
-                        </Tabs>
+                        <Card className="border-zinc-800 mt-6" style={{ background: `linear-gradient(135deg, ${activeCategoryData.color}10 0%, #1c1c1c 100%)` }}>
+                            <CardHeader>
+                                <CardTitle className="text-white flex items-center gap-2 text-lg">Overview for {searchedStock}</CardTitle>
+                                <CardDescription className="text-gray-400 text-xs">Previous trading day's data for {searchedStock}.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {renderOverviewContent()}
+                            </CardContent>
+                        </Card>
                     </motion.div>
                 )}
             </AnimatePresence>

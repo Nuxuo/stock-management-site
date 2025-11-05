@@ -7,33 +7,26 @@ import { usePersistentState } from '@/lib/hooks';
 import { Separator } from "@/components/ui/separator";
 import { iconMap } from '@/lib/icons';
 import { CategorySelector } from '@/components/data_viz/CategorySelector';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Import all the tab components
 import DashboardTab from '@/components/data_viz/tabs/DashboardTab';
-import MarketsTab from '@/components/data_viz/tabs/MarketsTab';
 import AnalysisTab from '@/components/data_viz/tabs/AnalysisTab';
-import NewsTab from '@/components/data_viz/tabs/NewsTab';
 import StocksTab from '@/components/data_viz/tabs/StockTab';
-import ClimateTab from '@/components/data_viz/tabs/ClimateTab';
 
 const CACHE_TTL_MINUTES = 15;
 
 export default function Home() {
   const [categories, setCategories] = usePersistentState<Category[]>('categories_cache_stocks', [], CACHE_TTL_MINUTES);
   const [activeCategory, setActiveCategory] = useState<CategorySlug>('dashboard');
-  const [activeSubCategory, setActiveSubCategory] = useState<string>('overview');
 
   const [loading, setLoading] = useState({ categories: true });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const staticCategories: Category[] = [
-      { id: '1', slug: 'dashboard', title: 'Dashboard', icon: 'Home', color: '#3b82f6', description: 'Your personal stock overview.', subCategories: { overview: "Overview", portfolio: "Portfolio", watchlist: "Watchlist" } },
-      { id: '2', slug: 'markets', title: 'Markets', icon: 'Globe', color: '#22c55e', description: "Get a pulse on the market.", subCategories: { overview: "Overview", indices: "Indices", sectors: "Sectors" } },
-      { id: '3', slug: 'analysis', title: 'Analysis', icon: 'Sliders', color: '#f97316', description: 'Tools for stock analysis.', subCategories: { screener: "Screener", heatmap: "Heatmap", "top-movers": "Top Movers" } },
-      { id: '4', slug: 'news', title: 'News', icon: 'Newspaper', color: '#eab308', description: 'The latest financial news.', subCategories: { "top-stories": "Top Stories", "my-feed": "My Feed", "watchlist-news": "Watchlist News" } },
-      { id: '5', slug: 'stocks', title: 'Stocks', icon: 'Search', color: '#8b5cf6', description: 'Search for a specific stock.', subCategories: { overview: "Overview", charts: "Charts", news: "News" } },
+      { id: '1', slug: 'dashboard', title: 'Dashboard', icon: 'Home', color: '#3b82f6', description: 'Your personal stock overview.', subCategories: {} },
+      { id: '2', slug: 'analysis', title: 'Analysis', icon: 'Sliders', color: '#f97316', description: 'Tools for stock analysis.', subCategories: {} },
+      { id: '3', slug: 'stocks', title: 'Stocks', icon: 'Search', color: '#8b5cf6', description: 'Search for a specific stock.', subCategories: {} },
     ];
     setCategories(staticCategories);
     setLoading(prev => ({ ...prev, categories: false }));
@@ -43,23 +36,17 @@ export default function Home() {
 
   const handleSelectCategory = (slug: CategorySlug) => {
     setActiveCategory(slug);
-    const firstSubCategory = Object.keys(categories.find(c => c.slug === slug)?.subCategories || {})[0];
-    setActiveSubCategory(firstSubCategory || 'overview');
   }
 
   const renderActiveTab = () => {
     if (!activeCategoryData) return null;
     switch (activeCategory) {
       case 'dashboard':
-        return <DashboardTab activeSubCategory={activeSubCategory} onSubCategoryChange={setActiveSubCategory} activeCategoryData={activeCategoryData} />;
-      case 'markets':
-        return <MarketsTab activeSubCategory={activeSubCategory} onSubCategoryChange={setActiveSubCategory} activeCategoryData={activeCategoryData} />;
+        return <DashboardTab activeCategoryData={activeCategoryData} />;
       case 'analysis':
-        return <AnalysisTab activeSubCategory={activeSubCategory} onSubCategoryChange={setActiveSubCategory} activeCategoryData={activeCategoryData} />;
-      case 'news':
-        return <NewsTab activeSubCategory={activeSubCategory} onSubCategoryChange={setActiveSubCategory} activeCategoryData={activeCategoryData} />;
+        return <AnalysisTab activeCategoryData={activeCategoryData} />;
       case 'stocks':
-        return <StocksTab activeSubCategory={activeSubCategory} onSubCategoryChange={setActiveSubCategory} activeCategoryData={activeCategoryData} />;
+        return <StocksTab activeCategoryData={activeCategoryData} />;
       default:
         return null;
     }
