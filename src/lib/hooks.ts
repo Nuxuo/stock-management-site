@@ -130,3 +130,8 @@ export function usePortfolios() {
 
 // Export the new Supabase-based hook
 export { useSupabasePortfolios } from './hooks/useSupabasePortfolios';
+export type { PortfolioWithHoldings } from './hooks/useSupabasePortfolios';
+
+// Export the WebSocket stock data hook
+export { useStockWebSocket } from './hooks/useStockWebSocket';
+export type { StockUpdate } from './hooks/useStockWebSocket';
