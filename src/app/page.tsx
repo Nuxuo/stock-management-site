@@ -2,11 +2,23 @@
 "use client"
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Category, CategorySlug } from '@/lib/types';
 import { usePersistentState } from '@/lib/hooks';
+import { useAuth } from '@/contexts/AuthContext';
 import { Separator } from "@/components/ui/separator";
 import { iconMap } from '@/lib/icons';
 import { CategorySelector } from '@/components/data_viz/CategorySelector';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import { LogOut, User } from 'lucide-react';
 
 // Import all the tab components
 import DashboardTab from '@/components/data_viz/tabs/DashboardTab';
@@ -17,11 +29,20 @@ import PortfolioTab from '@/components/data_viz/tabs/PortfolioTab';
 const CACHE_TTL_MINUTES = 15;
 
 export default function Home() {
+  const router = useRouter();
+  const { user, loading: authLoading, signOut } = useAuth();
   const [categories, setCategories] = usePersistentState<Category[]>('categories_cache_stocks', [], CACHE_TTL_MINUTES);
   const [activeCategory, setActiveCategory] = useState<CategorySlug>('dashboard');
 
   const [loading, setLoading] = useState({ categories: true });
   const [error, setError] = useState<string | null>(null);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     const staticCategories: Category[] = [
@@ -40,6 +61,11 @@ export default function Home() {
     setActiveCategory(slug);
   }
 
+  const handleLogout = async () => {
+    await signOut();
+    router.push('/login');
+  };
+
   const renderActiveTab = () => {
     if (!activeCategoryData) return null;
     switch (activeCategory) {
@@ -54,6 +80,20 @@ export default function Home() {
       default:
         return null;
     }
+  }
+
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(to right, #171717 0%, #171717 100%)' }}>
+        <p className="text-white">Loading...</p>
+      </div>
+    );
+  }
+
+  // Don't render anything if not authenticated (redirect will happen)
+  if (!user) {
+    return null;
   }
 
   if (loading.categories && categories.length === 0) {
@@ -83,6 +123,28 @@ export default function Home() {
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(to right, #171717 0%, #171717 100%)' }}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* User Menu */}
+        <div className="flex justify-end mb-4">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white hover:bg-zinc-800">
+                <User className="h-4 w-4 mr-2" />
+                {user.email}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-800">
+              <DropdownMenuLabel className="text-gray-300">My Account</DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-zinc-800" />
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="text-gray-300 hover:bg-zinc-800 cursor-pointer"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         <CategorySelector categories={categories} activeCategory={activeCategory} onSelectCategory={handleSelectCategory} />
 
