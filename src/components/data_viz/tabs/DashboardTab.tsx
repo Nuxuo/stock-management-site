@@ -2,9 +2,9 @@
 "use client";
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Home, TrendingUp, DollarSign, BarChart3, Briefcase, Star, Activity } from 'lucide-react';
+import { Home, TrendingUp, DollarSign, BarChart3, Briefcase, Star, Activity, Loader2 } from 'lucide-react';
 import { Category } from '@/lib/types';
-import { usePortfolios } from '@/lib/hooks';
+import { useSupabasePortfolios } from '@/lib/hooks';
 
 const iconMap: { [key: string]: React.ReactNode } = {
     DollarSign: <DollarSign className="w-4 h-4" />,
@@ -16,31 +16,49 @@ const iconMap: { [key: string]: React.ReactNode } = {
 };
 
 const DashboardTab = ({ activeCategoryData }: { activeCategoryData: Category }) => {
-    const { activePortfolio } = usePortfolios();
+    const { holdings, loading, error } = useSupabasePortfolios();
 
-    const calculateTotalValue = () => {
-        if (!activePortfolio) return 0;
-        return activePortfolio.holdings.reduce((sum, h) => sum + (h.shares * h.currentPrice), 0);
+    // Calculate total cost from holdings
+    const totalCost = holdings.reduce((sum, h) => sum + h.total_cost, 0);
+
+    // Note: In production, fetch current prices from API
+    // For now, using average_cost as placeholder
+    const totalValue = holdings.reduce((sum, h) => sum + (h.quantity * h.average_cost), 0);
+
+    const totalGain = {
+        amount: totalValue - totalCost,
+        percent: totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0,
     };
 
-    const calculateTotalGain = () => {
-        if (!activePortfolio) return { amount: 0, percent: 0 };
-        const totalCost = activePortfolio.holdings.reduce((sum, h) => sum + (h.shares * h.avgPrice), 0);
-        const totalValue = calculateTotalValue();
-        const gain = totalValue - totalCost;
-        const percent = totalCost > 0 ? (gain / totalCost) * 100 : 0;
-        return { amount: gain, percent };
-    };
-
+    // Calculate win rate (holdings with positive gains)
     const calculateWinRate = () => {
-        if (!activePortfolio || activePortfolio.holdings.length === 0) return 0;
-        const winners = activePortfolio.holdings.filter(h => h.currentPrice > h.avgPrice).length;
-        return (winners / activePortfolio.holdings.length) * 100;
+        if (holdings.length === 0) return 0;
+        // Since we're using average_cost for current value, this will always be 0
+        // In production, you'd compare current market price to average_cost
+        const winners = holdings.filter(h => {
+            const currentValue = h.quantity * h.average_cost;
+            return currentValue > h.total_cost;
+        }).length;
+        return (winners / holdings.length) * 100;
     };
 
-    const totalValue = calculateTotalValue();
-    const totalGain = calculateTotalGain();
     const winRate = calculateWinRate();
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex items-center justify-center py-12">
+                <p className="text-red-400">Error loading dashboard: {error}</p>
+            </div>
+        );
+    }
 
     const portfolioHighlights = [
         {
@@ -50,7 +68,7 @@ const DashboardTab = ({ activeCategoryData }: { activeCategoryData: Category }) 
             change: `${totalGain.percent >= 0 ? '+' : ''}${totalGain.percent.toFixed(1)}%`
         },
         {
-            title: `${activePortfolio?.holdings.length || 0} stocks`,
+            title: `${holdings.length} stocks`,
             subtitle: 'Total Holdings',
             icon: 'Briefcase',
             change: null
@@ -103,24 +121,24 @@ const DashboardTab = ({ activeCategoryData }: { activeCategoryData: Category }) 
 
                     <div className="border-t border-zinc-800 pt-4">
                         <h3 className="text-sm font-semibold text-white mb-3">Top Holdings</h3>
-                        {activePortfolio && activePortfolio.holdings.length > 0 ? (
+                        {holdings.length > 0 ? (
                             <div className="space-y-2">
-                                {activePortfolio.holdings.slice(0, 5).map((holding) => {
-                                    const totalValue = holding.shares * holding.currentPrice;
-                                    const gain = totalValue - (holding.shares * holding.avgPrice);
-                                    const gainPercent = ((holding.currentPrice - holding.avgPrice) / holding.avgPrice) * 100;
+                                {holdings.slice(0, 5).map((holding) => {
+                                    const holdingTotalValue = holding.quantity * holding.average_cost;
+                                    const gain = holdingTotalValue - holding.total_cost;
+                                    const gainPercent = holding.total_cost > 0 ? (gain / holding.total_cost) * 100 : 0;
 
                                     return (
-                                        <div key={holding.ticker} className="flex items-center justify-between p-2 rounded bg-zinc-900/30">
+                                        <div key={holding.id} className="flex items-center justify-between p-2 rounded bg-zinc-900/30">
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-semibold text-white">{holding.ticker}</span>
-                                                    <span className="text-xs text-gray-500">{holding.name}</span>
+                                                    <span className="text-xs font-semibold text-white">{holding.asset.symbol}</span>
+                                                    <span className="text-xs text-gray-500">{holding.asset.name}</span>
                                                 </div>
-                                                <span className="text-xs text-gray-500">{holding.shares} shares @ ${holding.currentPrice.toFixed(2)}</span>
+                                                <span className="text-xs text-gray-500">{holding.quantity} shares @ ${holding.average_cost.toFixed(2)}</span>
                                             </div>
                                             <div className="text-right">
-                                                <div className="text-xs font-medium text-white">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                                <div className="text-xs font-medium text-white">${holdingTotalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                                                 <div className={`text-xs ${gain >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                                     {gain >= 0 ? '+' : ''}{gainPercent.toFixed(1)}%
                                                 </div>
