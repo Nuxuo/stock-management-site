@@ -1,6 +1,5 @@
 // src/lib/types.ts
-export type CategorySlug = 'dashboard' | 'markets' | 'analysis' | 'news' | 'stocks';
-export type SubCategory = 'overview' | 'portfolio' | 'watchlist' | 'indices' | 'sectors' | 'screener' | 'heatmap' | 'top-movers' | 'top-stories' | 'my-feed' | 'watchlist-news';
+export type CategorySlug = 'dashboard' | 'analysis' | 'stocks';
 
 export interface Category {
   id: string;
