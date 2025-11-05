@@ -1,6 +1,6 @@
 // src/components/data_viz/tabs/PortfolioTab.tsx
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Briefcase, Plus, Trash2, DollarSign, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
 import { Category } from '@/lib/types';
-import { useSupabasePortfolios } from '@/lib/hooks';
+import { useSupabasePortfolios, useStockWebSocket } from '@/lib/hooks';
 import { toast } from 'sonner';
 
 const PortfolioTab = ({ activeCategoryData }: { activeCategoryData: Category }) => {
@@ -120,13 +120,29 @@ const PortfolioTab = ({ activeCategoryData }: { activeCategoryData: Category }) 
         }
     };
 
+    // Get all symbols from holdings for WebSocket subscription
+    const symbols = useMemo(() => holdings.map(h => h.asset.symbol), [holdings]);
+
+    // Connect to WebSocket for real-time prices
+    const { stockData: wsStockData, isConnected } = useStockWebSocket({
+        symbols,
+        enabled: holdings.length > 0,
+    });
+
+    // Helper to get current price for a holding
+    const getCurrentPrice = (symbol: string, fallbackPrice: number) => {
+        const liveData = wsStockData.get(symbol);
+        return liveData?.price ?? fallbackPrice;
+    };
+
     // Calculate total cost from holdings
     const totalCost = holdings.reduce((sum, h) => sum + h.total_cost, 0);
 
-    // Note: In a production app, you'd fetch current prices from an API
-    // For now, we'll use the average_cost as a placeholder
-    // You can integrate with the Polygon API to get real-time prices
-    const totalValue = holdings.reduce((sum, h) => sum + (h.quantity * h.average_cost), 0);
+    // Calculate total value using live prices
+    const totalValue = holdings.reduce((sum, h) => {
+        const currentPrice = getCurrentPrice(h.asset.symbol, h.average_cost);
+        return sum + (h.quantity * currentPrice);
+    }, 0);
 
     const totalGain = {
         amount: totalValue - totalCost,
@@ -157,9 +173,10 @@ const PortfolioTab = ({ activeCategoryData }: { activeCategoryData: Category }) 
                         <div>
                             <CardTitle className="text-white flex items-center gap-2 text-lg">
                                 <Briefcase className="w-4 h-4" />Portfolio Management
+                                {isConnected && holdings.length > 0 && <span className="text-xs text-green-500 font-normal">● Live</span>}
                             </CardTitle>
                             <CardDescription className="text-gray-400 text-xs">
-                                Manage your investment portfolios and holdings.
+                                Manage your investment portfolios and holdings with real-time prices.
                             </CardDescription>
                         </div>
                         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -346,8 +363,10 @@ const PortfolioTab = ({ activeCategoryData }: { activeCategoryData: Category }) 
                                 ) : (
                                     <div className="space-y-2">
                                         {holdings.map((holding) => {
+                                            const currentPrice = getCurrentPrice(holding.asset.symbol, holding.average_cost);
+                                            const isLivePrice = wsStockData.has(holding.asset.symbol);
                                             const holdingTotalCost = holding.total_cost;
-                                            const holdingTotalValue = holding.quantity * holding.average_cost;
+                                            const holdingTotalValue = holding.quantity * currentPrice;
                                             const gain = holdingTotalValue - holdingTotalCost;
                                             const gainPercent = holdingTotalCost > 0 ? (gain / holdingTotalCost) * 100 : 0;
 
@@ -356,13 +375,14 @@ const PortfolioTab = ({ activeCategoryData }: { activeCategoryData: Category }) 
                                                     <div className="flex-1">
                                                         <div className="flex items-center gap-2 mb-1">
                                                             <span className="text-sm font-semibold text-white">{holding.asset.symbol}</span>
+                                                            {isLivePrice && <span className="text-xs text-green-500">●</span>}
                                                             <span className="text-xs text-gray-500">{holding.asset.name}</span>
                                                         </div>
                                                         <div className="flex items-center gap-3 text-xs text-gray-400">
                                                             <span>{holding.quantity} shares</span>
-                                                            <span>@${holding.average_cost.toFixed(2)}</span>
+                                                            <span>Cost: ${holding.average_cost.toFixed(2)}</span>
                                                             <span className="text-gray-500">•</span>
-                                                            <span>Total Cost: ${holdingTotalCost.toFixed(2)}</span>
+                                                            <span>Now: ${currentPrice.toFixed(2)}</span>
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-3">

@@ -3,27 +3,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { StockData, Category } from '@/lib/types';
+import { Category, Asset } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const availableStocks = [
-    { ticker: 'AAPL', name: 'Apple Inc.' },
-    { ticker: 'MSFT', name: 'Microsoft Corp.' },
-    { ticker: 'GOOGL', name: 'Alphabet Inc. (Class A)' },
-    { ticker: 'AMZN', name: 'Amazon.com Inc.' },
-    { ticker: 'NVDA', name: 'NVIDIA Corp.' },
-    { ticker: 'TSLA', name: 'Tesla Inc.' },
-    { ticker: 'META', name: 'Meta Platforms Inc.' },
-    { ticker: 'BRK-B', name: 'Berkshire Hathaway Inc. (Class B)' },
-    { ticker: 'JPM', name: 'JPMorgan Chase & Co.' },
-    { ticker: 'V', name: 'Visa Inc.' },
-    { ticker: 'JNJ', name: 'Johnson & Johnson' },
-    { ticker: 'WMT', name: 'Walmart Inc.' },
-    { ticker: 'PG', name: 'Procter & Gamble Co.' },
-    { ticker: 'UNH', name: 'UnitedHealth Group Inc.' },
-    { ticker: 'HD', name: 'Home Depot Inc.' },
-];
+import { useStockWebSocket, StockUpdate } from '@/lib/hooks';
+import { getAssets } from '@/lib/supabase/database';
 
 
 // Helper function to safely format numbers or return a fallback string
@@ -55,40 +39,56 @@ const formatLargeNumber = (num: number | null | undefined) => {
 
 const StocksTab = ({ activeCategoryData }: { activeCategoryData: Category }) => {
     const [searchTerm, setSearchTerm] = useState('');
-    const [searchedStock, setSearchedStock] = useState<string | null>('AAPL'); // Default to AAPL
-    const [stockData, setStockData] = useState<StockData | null>(null);
+    const [searchedStock, setSearchedStock] = useState<string | null>(null);
+    const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+    const [availableStocks, setAvailableStocks] = useState<Asset[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [open, setOpen] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
+    // Load available stocks from Supabase
     useEffect(() => {
-        if (!searchedStock) return;
-
-        const fetchStockData = async () => {
-            setLoading(true);
-            setError(null);
-            setStockData(null);
+        const loadStocks = async () => {
             try {
-                const response = await fetch(`/api/stock/${searchedStock}`);
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to fetch stock data');
+                const { data, error } = await getAssets({
+                    assetType: 'stock',
+                    isActive: true
+                });
+                if (error) throw error;
+                setAvailableStocks(data || []);
+
+                // Set default stock to first one if available
+                if (data && data.length > 0) {
+                    setSearchedStock(data[0].symbol);
+                    setSelectedAsset(data[0]);
                 }
-                const data = await response.json();
-                setStockData(data);
-            } catch (err: any) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
+            } catch (err) {
+                console.error('Error loading stocks:', err);
+                setError(err instanceof Error ? err.message : 'Failed to load stocks');
             }
         };
 
-        fetchStockData();
-    }, [searchedStock]);
+        loadStocks();
+    }, []);
+
+    // WebSocket connection for real-time updates
+    const { stockData: wsStockData, isConnected, error: wsError } = useStockWebSocket({
+        symbols: searchedStock ? [searchedStock] : [],
+        enabled: !!searchedStock,
+        onError: (err) => {
+            console.error('WebSocket error:', err);
+            setError(err.message);
+        },
+    });
+
+    // Get current stock data from WebSocket
+    const currentStockData = searchedStock ? wsStockData.get(searchedStock) : null;
 
     const handleSelectStock = (ticker: string) => {
+        const asset = availableStocks.find(s => s.symbol === ticker);
         setSearchedStock(ticker);
+        setSelectedAsset(asset || null);
         setSearchTerm(ticker);
         setOpen(false);
         if (inputRef.current) {
@@ -104,7 +104,7 @@ const StocksTab = ({ activeCategoryData }: { activeCategoryData: Category }) => 
     };
 
     const renderOverviewContent = () => {
-        if (loading) {
+        if (loading || !isConnected) {
             return (
                 <div className="space-y-4">
                     <Skeleton className="h-8 w-3/4" />
@@ -116,60 +116,66 @@ const StocksTab = ({ activeCategoryData }: { activeCategoryData: Category }) => 
                             </div>
                         ))}
                     </div>
+                    <div className="text-center text-sm text-gray-500 mt-4">
+                        {!isConnected ? 'Connecting to live data feed...' : 'Loading stock data...'}
+                    </div>
                 </div>
             );
         }
 
-        if (error) {
+        if (error || wsError) {
             return (
                 <div className="text-center text-red-400">
-                    <p>Error: {error}</p>
+                    <p>Error: {error || wsError?.message}</p>
+                    <p className="text-xs text-gray-500 mt-2">Make sure your local API is running at https://localhost:7039</p>
                 </div>
             );
         }
 
-        if (!stockData) {
+        if (!currentStockData) {
             return (
                 <div className="text-center text-gray-500">
-                    <p>Search for a stock to see its overview.</p>
+                    <p>Waiting for live data...</p>
+                    <p className="text-xs text-gray-600 mt-2">Connected to WebSocket</p>
                 </div>
-            )
+            );
         }
-        
-        const isPositive = stockData.regularMarketChange ? stockData.regularMarketChange >= 0 : false;
-        const stockName = stockData.name || 'N/A';
+
+        const isPositive = currentStockData.change >= 0;
+        const stockName = selectedAsset?.name || searchedStock || 'N/A';
 
         return (
             <div>
                  <div className="flex items-end gap-4 mb-2">
                     <h2 className="text-2xl font-bold text-white">{stockName}</h2>
+                    <span className="text-xs text-green-500">● LIVE</span>
                  </div>
                  <div className="flex items-end gap-4 mb-6">
-                    <h2 className="text-4xl font-bold text-white">{formatPrice(stockData.regularMarketPrice)}</h2>
+                    <h2 className="text-4xl font-bold text-white">{formatPrice(currentStockData.price)}</h2>
                     <div className={`text-xl font-semibold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                        {isPositive ? '+' : ''}{formatPrice(stockData.regularMarketChange, 2).replace('$', '')} ({formatPercent(stockData.regularMarketChangePercent)})
+                        {isPositive ? '+' : ''}{formatPrice(currentStockData.change, 2).replace('$', '')} ({formatPercent(currentStockData.changePercent)})
                     </div>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-6 text-sm">
                     <div className="space-y-1">
                         <p className="text-gray-400">Open</p>
-                        <p className="text-white font-medium">{formatPrice(stockData.regularMarketOpen)}</p>
+                        <p className="text-white font-medium">{formatPrice(currentStockData.open)}</p>
                     </div>
                     <div className="space-y-1">
                         <p className="text-gray-400">Day High</p>
-                        <p className="text-white font-medium">{formatPrice(stockData.regularMarketDayHigh)}</p>
+                        <p className="text-white font-medium">{formatPrice(currentStockData.high)}</p>
                     </div>
                     <div className="space-y-1">
                         <p className="text-gray-400">Day Low</p>
-                        <p className="text-white font-medium">{formatPrice(stockData.regularMarketDayLow)}</p>
+                        <p className="text-white font-medium">{formatPrice(currentStockData.low)}</p>
                     </div>
                     <div className="space-y-1">
                         <p className="text-gray-400">Volume</p>
-                        <p className="text-white font-medium">{formatLargeNumber(stockData.regularMarketVolume)}</p>
+                        <p className="text-white font-medium">{formatLargeNumber(currentStockData.volume)}</p>
                     </div>
                     <div className="space-y-1">
                         <p className="text-gray-400">Market Cap</p>
-                        <p className="text-white font-medium">{formatLargeNumber(stockData.marketCap)}</p>
+                        <p className="text-white font-medium">{formatLargeNumber(currentStockData.marketCap)}</p>
                     </div>
                 </div>
             </div>
@@ -195,17 +201,17 @@ const StocksTab = ({ activeCategoryData }: { activeCategoryData: Category }) => 
                             <CommandGroup>
                                 {availableStocks
                                     .filter(stock =>
-                                        stock.ticker.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                        stock.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                         stock.name.toLowerCase().includes(searchTerm.toLowerCase())
                                     )
                                     .map((stock) => (
                                         <CommandItem
-                                            key={stock.ticker}
-                                            value={stock.ticker}
-                                            onSelect={() => handleSelectStock(stock.ticker)}
+                                            key={stock.id}
+                                            value={stock.symbol}
+                                            onSelect={() => handleSelectStock(stock.symbol)}
                                             className="cursor-pointer hover:bg-zinc-700 data-[selected=true]:bg-zinc-700 aria-selected:bg-zinc-700"
                                         >
-                                            <span className="font-semibold">{stock.ticker}</span> - <span className="text-gray-400">{stock.name}</span>
+                                            <span className="font-semibold">{stock.symbol}</span> - <span className="text-gray-400">{stock.name}</span>
                                         </CommandItem>
                                     ))}
                             </CommandGroup>
@@ -224,8 +230,13 @@ const StocksTab = ({ activeCategoryData }: { activeCategoryData: Category }) => 
                     >
                         <Card className="border-zinc-800 mt-6" style={{ background: `linear-gradient(135deg, ${activeCategoryData.color}10 0%, #1c1c1c 100%)` }}>
                             <CardHeader>
-                                <CardTitle className="text-white flex items-center gap-2 text-lg">Overview for {searchedStock}</CardTitle>
-                                <CardDescription className="text-gray-400 text-xs">Previous trading day's data for {searchedStock}.</CardDescription>
+                                <CardTitle className="text-white flex items-center gap-2 text-lg">
+                                    Overview for {searchedStock}
+                                    {isConnected && <span className="text-xs text-green-500 font-normal">● Live</span>}
+                                </CardTitle>
+                                <CardDescription className="text-gray-400 text-xs">
+                                    Real-time stock data from your local API
+                                </CardDescription>
                             </CardHeader>
                             <CardContent>
                                 {renderOverviewContent()}
