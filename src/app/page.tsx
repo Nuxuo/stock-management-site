@@ -12,6 +12,7 @@ import { CategorySelector } from '@/components/data_viz/CategorySelector';
 import DashboardTab from '@/components/data_viz/tabs/DashboardTab';
 import AnalysisTab from '@/components/data_viz/tabs/AnalysisTab';
 import StocksTab from '@/components/data_viz/tabs/StockTab';
+import PortfolioTab from '@/components/data_viz/tabs/PortfolioTab';
 
 const CACHE_TTL_MINUTES = 15;
 
@@ -25,8 +26,9 @@ export default function Home() {
   useEffect(() => {
     const staticCategories: Category[] = [
       { id: '1', slug: 'dashboard', title: 'Dashboard', icon: 'Home', color: '#3b82f6', description: 'Your personal stock overview.', subCategories: {} },
-      { id: '2', slug: 'analysis', title: 'Analysis', icon: 'Sliders', color: '#f97316', description: 'Tools for stock analysis.', subCategories: {} },
-      { id: '3', slug: 'stocks', title: 'Stocks', icon: 'Search', color: '#8b5cf6', description: 'Search for a specific stock.', subCategories: {} },
+      { id: '2', slug: 'portfolio', title: 'Portfolio', icon: 'Briefcase', color: '#10b981', description: 'Manage your portfolios.', subCategories: {} },
+      { id: '3', slug: 'analysis', title: 'Analysis', icon: 'Sliders', color: '#f97316', description: 'Tools for stock analysis.', subCategories: {} },
+      { id: '4', slug: 'stocks', title: 'Stocks', icon: 'Search', color: '#8b5cf6', description: 'Search for a specific stock.', subCategories: {} },
     ];
     setCategories(staticCategories);
     setLoading(prev => ({ ...prev, categories: false }));
@@ -43,6 +45,8 @@ export default function Home() {
     switch (activeCategory) {
       case 'dashboard':
         return <DashboardTab activeCategoryData={activeCategoryData} />;
+      case 'portfolio':
+        return <PortfolioTab activeCategoryData={activeCategoryData} />;
       case 'analysis':
         return <AnalysisTab activeCategoryData={activeCategoryData} />;
       case 'stocks':

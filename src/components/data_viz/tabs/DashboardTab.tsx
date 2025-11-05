@@ -2,37 +2,9 @@
 "use client";
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Home, TrendingUp, DollarSign, BarChart3, Briefcase } from 'lucide-react';
+import { Home, TrendingUp, DollarSign, BarChart3, Briefcase, Star, Activity } from 'lucide-react';
 import { Category } from '@/lib/types';
-
-// Mock data
-const portfolioHighlights = [
-    { title: '$125,450', subtitle: 'Total Portfolio Value', icon: 'DollarSign', change: '+12.5%' },
-    { title: '15 stocks', subtitle: 'Total Holdings', icon: 'Briefcase', change: '+3' },
-    { title: '+$8,234', subtitle: "Today's Gain", icon: 'TrendingUp', change: '+2.3%' },
-    { title: '85.2%', subtitle: 'Win Rate', icon: 'BarChart3', change: '+5.1%' }
-];
-
-const watchlistHighlights = [
-    { title: '24 stocks', subtitle: 'Watching', icon: 'Star', change: null },
-    { title: '7 alerts', subtitle: 'Active Alerts', icon: 'Activity', change: 'New' },
-    { title: '3 buy signals', subtitle: 'Today', icon: 'TrendingUp', change: null },
-    { title: '92% accuracy', subtitle: 'Alert Success', icon: 'BarChart3', change: '+3%' }
-];
-
-const mockPortfolio = [
-    { ticker: 'AAPL', name: 'Apple Inc.', shares: 50, avgPrice: 150.25, currentPrice: 182.50, gain: '+$1,612.50', gainPercent: '+21.5%' },
-    { ticker: 'MSFT', name: 'Microsoft Corp.', shares: 30, avgPrice: 280.00, currentPrice: 378.85, gain: '+$2,965.50', gainPercent: '+35.3%' },
-    { ticker: 'GOOGL', name: 'Alphabet Inc.', shares: 20, avgPrice: 120.50, currentPrice: 138.25, gain: '+$355.00', gainPercent: '+14.7%' },
-    { ticker: 'NVDA', name: 'NVIDIA Corp.', shares: 15, avgPrice: 450.00, currentPrice: 875.50, gain: '+$6,382.50', gainPercent: '+94.6%' },
-];
-
-const mockWatchlist = [
-    { ticker: 'TSLA', name: 'Tesla Inc.', price: 248.50, change: '+5.25', changePercent: '+2.16%', alert: 'Buy Signal' },
-    { ticker: 'META', name: 'Meta Platforms', price: 485.20, change: '-3.80', changePercent: '-0.78%', alert: null },
-    { ticker: 'AMD', name: 'AMD', price: 165.30, change: '+8.90', changePercent: '+5.69%', alert: 'Volume Spike' },
-    { ticker: 'JPM', name: 'JPMorgan Chase', price: 195.80, change: '+1.20', changePercent: '+0.62%', alert: null },
-];
+import { usePortfolios } from '@/lib/hooks';
 
 const iconMap: { [key: string]: React.ReactNode } = {
     DollarSign: <DollarSign className="w-4 h-4" />,
@@ -44,6 +16,58 @@ const iconMap: { [key: string]: React.ReactNode } = {
 };
 
 const DashboardTab = ({ activeCategoryData }: { activeCategoryData: Category }) => {
+    const { activePortfolio } = usePortfolios();
+
+    const calculateTotalValue = () => {
+        if (!activePortfolio) return 0;
+        return activePortfolio.holdings.reduce((sum, h) => sum + (h.shares * h.currentPrice), 0);
+    };
+
+    const calculateTotalGain = () => {
+        if (!activePortfolio) return { amount: 0, percent: 0 };
+        const totalCost = activePortfolio.holdings.reduce((sum, h) => sum + (h.shares * h.avgPrice), 0);
+        const totalValue = calculateTotalValue();
+        const gain = totalValue - totalCost;
+        const percent = totalCost > 0 ? (gain / totalCost) * 100 : 0;
+        return { amount: gain, percent };
+    };
+
+    const calculateWinRate = () => {
+        if (!activePortfolio || activePortfolio.holdings.length === 0) return 0;
+        const winners = activePortfolio.holdings.filter(h => h.currentPrice > h.avgPrice).length;
+        return (winners / activePortfolio.holdings.length) * 100;
+    };
+
+    const totalValue = calculateTotalValue();
+    const totalGain = calculateTotalGain();
+    const winRate = calculateWinRate();
+
+    const portfolioHighlights = [
+        {
+            title: `$${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            subtitle: 'Total Portfolio Value',
+            icon: 'DollarSign',
+            change: `${totalGain.percent >= 0 ? '+' : ''}${totalGain.percent.toFixed(1)}%`
+        },
+        {
+            title: `${activePortfolio?.holdings.length || 0} stocks`,
+            subtitle: 'Total Holdings',
+            icon: 'Briefcase',
+            change: null
+        },
+        {
+            title: `${totalGain.amount >= 0 ? '+' : ''}$${Math.abs(totalGain.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            subtitle: "Total Gain/Loss",
+            icon: 'TrendingUp',
+            change: `${totalGain.percent >= 0 ? '+' : ''}${totalGain.percent.toFixed(1)}%`
+        },
+        {
+            title: `${winRate.toFixed(1)}%`,
+            subtitle: 'Win Rate',
+            icon: 'BarChart3',
+            change: null
+        }
+    ];
     return (
         <div className="space-y-6 mt-6">
             <Card className="border-zinc-800 overflow-hidden" style={{ background: `linear-gradient(135deg, ${activeCategoryData.color}10 0%, #1c1c1c 100%)` }}>
@@ -78,21 +102,38 @@ const DashboardTab = ({ activeCategoryData }: { activeCategoryData: Category }) 
                     </div>
 
                     <div className="border-t border-zinc-800 pt-4">
-                        <h3 className="text-sm font-semibold text-white mb-3">Recent Activity</h3>
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between p-2 rounded bg-zinc-900/30">
-                                <span className="text-xs text-gray-400">AAPL buy order executed</span>
-                                <span className="text-xs text-gray-500">2 hours ago</span>
+                        <h3 className="text-sm font-semibold text-white mb-3">Top Holdings</h3>
+                        {activePortfolio && activePortfolio.holdings.length > 0 ? (
+                            <div className="space-y-2">
+                                {activePortfolio.holdings.slice(0, 5).map((holding) => {
+                                    const totalValue = holding.shares * holding.currentPrice;
+                                    const gain = totalValue - (holding.shares * holding.avgPrice);
+                                    const gainPercent = ((holding.currentPrice - holding.avgPrice) / holding.avgPrice) * 100;
+
+                                    return (
+                                        <div key={holding.ticker} className="flex items-center justify-between p-2 rounded bg-zinc-900/30">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-semibold text-white">{holding.ticker}</span>
+                                                    <span className="text-xs text-gray-500">{holding.name}</span>
+                                                </div>
+                                                <span className="text-xs text-gray-500">{holding.shares} shares @ ${holding.currentPrice.toFixed(2)}</span>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-xs font-medium text-white">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                                <div className={`text-xs ${gain >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                    {gain >= 0 ? '+' : ''}{gainPercent.toFixed(1)}%
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
-                            <div className="flex items-center justify-between p-2 rounded bg-zinc-900/30">
-                                <span className="text-xs text-gray-400">NVDA hit price target</span>
-                                <span className="text-xs text-gray-500">5 hours ago</span>
+                        ) : (
+                            <div className="text-center py-4 text-gray-500 text-xs">
+                                No holdings yet. Go to the Portfolio tab to add stocks.
                             </div>
-                            <div className="flex items-center justify-between p-2 rounded bg-zinc-900/30">
-                                <span className="text-xs text-gray-400">Portfolio rebalanced</span>
-                                <span className="text-xs text-gray-500">Yesterday</span>
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </CardContent>
             </Card>
