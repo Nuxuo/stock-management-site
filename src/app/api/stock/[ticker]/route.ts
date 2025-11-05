@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(
   request: Request,
-  context: { params: { ticker: string } }
+  context: { params: Promise<{ ticker: string }> }
 ) {
   // Await the params before accessing its properties
   const params = await context.params;

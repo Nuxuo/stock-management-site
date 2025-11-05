@@ -1,5 +1,5 @@
 // src/lib/types.ts
-export type CategorySlug = 'dashboard' | 'analysis' | 'stocks';
+export type CategorySlug = 'dashboard' | 'analysis' | 'stocks' | 'portfolio';
 
 export interface Category {
   id: string;
@@ -18,6 +18,18 @@ export interface PortfolioHolding {
   shares: number;
   avgPrice: number;
   currentPrice: number;
+}
+
+export interface Portfolio {
+  id: string;
+  name: string;
+  createdAt: string;
+  holdings: PortfolioHolding[];
+}
+
+export interface PortfolioState {
+  portfolios: Portfolio[];
+  activePortfolioId: string | null;
 }
 
 export interface WatchlistItem {
