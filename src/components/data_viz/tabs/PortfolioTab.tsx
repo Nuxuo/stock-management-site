@@ -7,101 +7,147 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Briefcase, Plus, Trash2, Edit2, DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
-import { Category, PortfolioHolding } from '@/lib/types';
-import { usePortfolios } from '@/lib/hooks';
+import { Briefcase, Plus, Trash2, DollarSign, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
+import { Category } from '@/lib/types';
+import { useSupabasePortfolios } from '@/lib/hooks';
+import { toast } from 'sonner';
 
 const PortfolioTab = ({ activeCategoryData }: { activeCategoryData: Category }) => {
     const {
         portfolios,
         activePortfolioId,
-        activePortfolio,
+        activePortfolioWithHoldings,
+        holdings,
+        loading,
+        error,
         createPortfolio,
         deletePortfolio,
         setActivePortfolio,
         addHolding,
-        updateHolding,
         removeHolding,
-    } = usePortfolios();
+    } = useSupabasePortfolios();
 
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [isAddHoldingDialogOpen, setIsAddHoldingDialogOpen] = useState(false);
-    const [isEditHoldingDialogOpen, setIsEditHoldingDialogOpen] = useState(false);
-    const [editingHolding, setEditingHolding] = useState<PortfolioHolding | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
 
     const [newPortfolioName, setNewPortfolioName] = useState('');
     const [newHolding, setNewHolding] = useState({
-        ticker: '',
+        symbol: '',
         name: '',
         shares: '',
-        avgPrice: '',
-        currentPrice: '',
+        price: '',
     });
 
-    const handleCreatePortfolio = () => {
-        if (newPortfolioName.trim()) {
-            createPortfolio(newPortfolioName.trim());
+    const handleCreatePortfolio = async () => {
+        if (!newPortfolioName.trim()) return;
+
+        setIsProcessing(true);
+        try {
+            await createPortfolio(newPortfolioName.trim());
             setNewPortfolioName('');
             setIsCreateDialogOpen(false);
+            toast.success('Portfolio created successfully');
+        } catch (err) {
+            toast.error('Failed to create portfolio');
+            console.error(err);
+        } finally {
+            setIsProcessing(false);
         }
     };
 
-    const handleDeletePortfolio = (id: string) => {
-        if (portfolios.length > 1) {
-            deletePortfolio(id);
+    const handleDeletePortfolio = async (id: string) => {
+        if (portfolios.length <= 1) {
+            toast.error('Cannot delete the last portfolio');
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            await deletePortfolio(id);
+            toast.success('Portfolio deleted successfully');
+        } catch (err) {
+            toast.error('Failed to delete portfolio');
+            console.error(err);
+        } finally {
+            setIsProcessing(false);
         }
     };
 
-    const handleAddHolding = () => {
-        if (activePortfolioId && newHolding.ticker && newHolding.name && newHolding.shares && newHolding.avgPrice && newHolding.currentPrice) {
-            const holding: PortfolioHolding = {
-                ticker: newHolding.ticker.toUpperCase(),
+    const handleAddHolding = async () => {
+        if (!activePortfolioId || !newHolding.symbol || !newHolding.name || !newHolding.shares || !newHolding.price) {
+            toast.error('Please fill in all fields');
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            await addHolding({
+                symbol: newHolding.symbol.toUpperCase(),
                 name: newHolding.name,
                 shares: parseFloat(newHolding.shares),
-                avgPrice: parseFloat(newHolding.avgPrice),
-                currentPrice: parseFloat(newHolding.currentPrice),
-            };
-            addHolding(activePortfolioId, holding);
-            setNewHolding({ ticker: '', name: '', shares: '', avgPrice: '', currentPrice: '' });
+                price: parseFloat(newHolding.price),
+            });
+            setNewHolding({ symbol: '', name: '', shares: '', price: '' });
             setIsAddHoldingDialogOpen(false);
+            toast.success('Holding added successfully');
+        } catch (err) {
+            toast.error('Failed to add holding');
+            console.error(err);
+        } finally {
+            setIsProcessing(false);
         }
     };
 
-    const handleEditHolding = (holding: PortfolioHolding) => {
-        setEditingHolding(holding);
-        setIsEditHoldingDialogOpen(true);
-    };
+    const handleRemoveHolding = async (asset_id: string, symbol: string) => {
+        const holding = holdings.find(h => h.asset_id === asset_id);
+        if (!holding) return;
 
-    const handleUpdateHolding = () => {
-        if (activePortfolioId && editingHolding) {
-            updateHolding(activePortfolioId, editingHolding.ticker, editingHolding);
-            setEditingHolding(null);
-            setIsEditHoldingDialogOpen(false);
+        setIsProcessing(true);
+        try {
+            await removeHolding({
+                asset_id,
+                shares: holding.quantity,
+                price: holding.average_cost,
+                notes: `Sold all shares of ${symbol}`,
+            });
+            toast.success('Holding removed successfully');
+        } catch (err) {
+            toast.error('Failed to remove holding');
+            console.error(err);
+        } finally {
+            setIsProcessing(false);
         }
     };
 
-    const handleRemoveHolding = (ticker: string) => {
-        if (activePortfolioId) {
-            removeHolding(activePortfolioId, ticker);
-        }
+    // Calculate total cost from holdings
+    const totalCost = holdings.reduce((sum, h) => sum + h.total_cost, 0);
+
+    // Note: In a production app, you'd fetch current prices from an API
+    // For now, we'll use the average_cost as a placeholder
+    // You can integrate with the Polygon API to get real-time prices
+    const totalValue = holdings.reduce((sum, h) => sum + (h.quantity * h.average_cost), 0);
+
+    const totalGain = {
+        amount: totalValue - totalCost,
+        percent: totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0,
     };
 
-    const calculateTotalValue = () => {
-        if (!activePortfolio) return 0;
-        return activePortfolio.holdings.reduce((sum, h) => sum + (h.shares * h.currentPrice), 0);
-    };
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            </div>
+        );
+    }
 
-    const calculateTotalGain = () => {
-        if (!activePortfolio) return { amount: 0, percent: 0 };
-        const totalCost = activePortfolio.holdings.reduce((sum, h) => sum + (h.shares * h.avgPrice), 0);
-        const totalValue = calculateTotalValue();
-        const gain = totalValue - totalCost;
-        const percent = totalCost > 0 ? (gain / totalCost) * 100 : 0;
-        return { amount: gain, percent };
-    };
-
-    const totalValue = calculateTotalValue();
-    const totalGain = calculateTotalGain();
+    if (error) {
+        return (
+            <div className="flex items-center justify-center py-12">
+                <p className="text-red-400">Error loading portfolios: {error}</p>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6 mt-6">
@@ -182,7 +228,7 @@ const PortfolioTab = ({ activeCategoryData }: { activeCategoryData: Category }) 
                         </div>
                     </div>
 
-                    {activePortfolio && (
+                    {activePortfolioWithHoldings && (
                         <>
                             {/* Portfolio Summary */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
@@ -212,7 +258,7 @@ const PortfolioTab = ({ activeCategoryData }: { activeCategoryData: Category }) 
                                         <Briefcase className="w-4 h-4" style={{ color: activeCategoryData.color }} />
                                         <span className="text-xs text-gray-400">Holdings</span>
                                     </div>
-                                    <p className="text-lg font-semibold text-white">{activePortfolio.holdings.length}</p>
+                                    <p className="text-lg font-semibold text-white">{holdings.length}</p>
                                 </div>
                             </div>
 
@@ -236,11 +282,11 @@ const PortfolioTab = ({ activeCategoryData }: { activeCategoryData: Category }) 
                                             </DialogHeader>
                                             <div className="space-y-4 py-4">
                                                 <div>
-                                                    <Label htmlFor="ticker">Ticker Symbol</Label>
+                                                    <Label htmlFor="symbol">Ticker Symbol</Label>
                                                     <Input
-                                                        id="ticker"
-                                                        value={newHolding.ticker}
-                                                        onChange={(e) => setNewHolding({ ...newHolding, ticker: e.target.value })}
+                                                        id="symbol"
+                                                        value={newHolding.symbol}
+                                                        onChange={(e) => setNewHolding({ ...newHolding, symbol: e.target.value })}
                                                         placeholder="e.g., AAPL"
                                                         className="mt-2 bg-zinc-800 border-zinc-700 text-white"
                                                     />
@@ -255,7 +301,7 @@ const PortfolioTab = ({ activeCategoryData }: { activeCategoryData: Category }) 
                                                         className="mt-2 bg-zinc-800 border-zinc-700 text-white"
                                                     />
                                                 </div>
-                                                <div className="grid grid-cols-3 gap-3">
+                                                <div className="grid grid-cols-2 gap-3">
                                                     <div>
                                                         <Label htmlFor="shares">Shares</Label>
                                                         <Input
@@ -268,26 +314,14 @@ const PortfolioTab = ({ activeCategoryData }: { activeCategoryData: Category }) 
                                                         />
                                                     </div>
                                                     <div>
-                                                        <Label htmlFor="avgPrice">Avg Price</Label>
+                                                        <Label htmlFor="price">Purchase Price</Label>
                                                         <Input
-                                                            id="avgPrice"
+                                                            id="price"
                                                             type="number"
                                                             step="0.01"
-                                                            value={newHolding.avgPrice}
-                                                            onChange={(e) => setNewHolding({ ...newHolding, avgPrice: e.target.value })}
+                                                            value={newHolding.price}
+                                                            onChange={(e) => setNewHolding({ ...newHolding, price: e.target.value })}
                                                             placeholder="150.25"
-                                                            className="mt-2 bg-zinc-800 border-zinc-700 text-white"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <Label htmlFor="currentPrice">Current Price</Label>
-                                                        <Input
-                                                            id="currentPrice"
-                                                            type="number"
-                                                            step="0.01"
-                                                            value={newHolding.currentPrice}
-                                                            onChange={(e) => setNewHolding({ ...newHolding, currentPrice: e.target.value })}
-                                                            placeholder="182.50"
                                                             className="mt-2 bg-zinc-800 border-zinc-700 text-white"
                                                         />
                                                     </div>
@@ -305,35 +339,35 @@ const PortfolioTab = ({ activeCategoryData }: { activeCategoryData: Category }) 
                                     </Dialog>
                                 </div>
 
-                                {activePortfolio.holdings.length === 0 ? (
+                                {holdings.length === 0 ? (
                                     <div className="text-center py-8 text-gray-500 text-sm">
                                         No holdings yet. Add your first stock to get started.
                                     </div>
                                 ) : (
                                     <div className="space-y-2">
-                                        {activePortfolio.holdings.map((holding) => {
-                                            const totalCost = holding.shares * holding.avgPrice;
-                                            const totalValue = holding.shares * holding.currentPrice;
-                                            const gain = totalValue - totalCost;
-                                            const gainPercent = (gain / totalCost) * 100;
+                                        {holdings.map((holding) => {
+                                            const holdingTotalCost = holding.total_cost;
+                                            const holdingTotalValue = holding.quantity * holding.average_cost;
+                                            const gain = holdingTotalValue - holdingTotalCost;
+                                            const gainPercent = holdingTotalCost > 0 ? (gain / holdingTotalCost) * 100 : 0;
 
                                             return (
-                                                <div key={holding.ticker} className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/30 border border-zinc-800/50 hover:border-zinc-700 transition-all">
+                                                <div key={holding.id} className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/30 border border-zinc-800/50 hover:border-zinc-700 transition-all">
                                                     <div className="flex-1">
                                                         <div className="flex items-center gap-2 mb-1">
-                                                            <span className="text-sm font-semibold text-white">{holding.ticker}</span>
-                                                            <span className="text-xs text-gray-500">{holding.name}</span>
+                                                            <span className="text-sm font-semibold text-white">{holding.asset.symbol}</span>
+                                                            <span className="text-xs text-gray-500">{holding.asset.name}</span>
                                                         </div>
                                                         <div className="flex items-center gap-3 text-xs text-gray-400">
-                                                            <span>{holding.shares} shares</span>
-                                                            <span>@${holding.avgPrice.toFixed(2)}</span>
-                                                            <span className="text-gray-500">→</span>
-                                                            <span>${holding.currentPrice.toFixed(2)}</span>
+                                                            <span>{holding.quantity} shares</span>
+                                                            <span>@${holding.average_cost.toFixed(2)}</span>
+                                                            <span className="text-gray-500">•</span>
+                                                            <span>Total Cost: ${holdingTotalCost.toFixed(2)}</span>
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-3">
                                                         <div className="text-right">
-                                                            <p className="text-sm font-medium text-white">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                                                            <p className="text-sm font-medium text-white">${holdingTotalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                                                             <p className={`text-xs ${gain >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                                                 {gain >= 0 ? '+' : ''}${gain.toFixed(2)} ({gainPercent >= 0 ? '+' : ''}{gainPercent.toFixed(2)}%)
                                                             </p>
@@ -342,16 +376,9 @@ const PortfolioTab = ({ activeCategoryData }: { activeCategoryData: Category }) 
                                                             <Button
                                                                 size="sm"
                                                                 variant="ghost"
-                                                                onClick={() => handleEditHolding(holding)}
-                                                                className="h-8 w-8 p-0 text-gray-400 hover:text-white"
-                                                            >
-                                                                <Edit2 className="w-3 h-3" />
-                                                            </Button>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                onClick={() => handleRemoveHolding(holding.ticker)}
+                                                                onClick={() => handleRemoveHolding(holding.asset_id, holding.asset.symbol)}
                                                                 className="h-8 w-8 p-0 text-gray-400 hover:text-red-400"
+                                                                disabled={isProcessing}
                                                             >
                                                                 <Trash2 className="w-3 h-3" />
                                                             </Button>
@@ -367,81 +394,6 @@ const PortfolioTab = ({ activeCategoryData }: { activeCategoryData: Category }) 
                     )}
                 </CardContent>
             </Card>
-
-            {/* Edit Holding Dialog */}
-            <Dialog open={isEditHoldingDialogOpen} onOpenChange={setIsEditHoldingDialogOpen}>
-                <DialogContent className="bg-zinc-900 border-zinc-800 text-white">
-                    <DialogHeader>
-                        <DialogTitle>Edit Holding</DialogTitle>
-                        <DialogDescription className="text-gray-400">
-                            Update the details of your stock holding.
-                        </DialogDescription>
-                    </DialogHeader>
-                    {editingHolding && (
-                        <div className="space-y-4 py-4">
-                            <div>
-                                <Label>Ticker Symbol</Label>
-                                <Input
-                                    value={editingHolding.ticker}
-                                    disabled
-                                    className="mt-2 bg-zinc-800 border-zinc-700 text-gray-500"
-                                />
-                            </div>
-                            <div>
-                                <Label htmlFor="edit-name">Company Name</Label>
-                                <Input
-                                    id="edit-name"
-                                    value={editingHolding.name}
-                                    onChange={(e) => setEditingHolding({ ...editingHolding, name: e.target.value })}
-                                    className="mt-2 bg-zinc-800 border-zinc-700 text-white"
-                                />
-                            </div>
-                            <div className="grid grid-cols-3 gap-3">
-                                <div>
-                                    <Label htmlFor="edit-shares">Shares</Label>
-                                    <Input
-                                        id="edit-shares"
-                                        type="number"
-                                        value={editingHolding.shares}
-                                        onChange={(e) => setEditingHolding({ ...editingHolding, shares: parseFloat(e.target.value) })}
-                                        className="mt-2 bg-zinc-800 border-zinc-700 text-white"
-                                    />
-                                </div>
-                                <div>
-                                    <Label htmlFor="edit-avgPrice">Avg Price</Label>
-                                    <Input
-                                        id="edit-avgPrice"
-                                        type="number"
-                                        step="0.01"
-                                        value={editingHolding.avgPrice}
-                                        onChange={(e) => setEditingHolding({ ...editingHolding, avgPrice: parseFloat(e.target.value) })}
-                                        className="mt-2 bg-zinc-800 border-zinc-700 text-white"
-                                    />
-                                </div>
-                                <div>
-                                    <Label htmlFor="edit-currentPrice">Current Price</Label>
-                                    <Input
-                                        id="edit-currentPrice"
-                                        type="number"
-                                        step="0.01"
-                                        value={editingHolding.currentPrice}
-                                        onChange={(e) => setEditingHolding({ ...editingHolding, currentPrice: parseFloat(e.target.value) })}
-                                        className="mt-2 bg-zinc-800 border-zinc-700 text-white"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsEditHoldingDialogOpen(false)} className="border-zinc-700">
-                            Cancel
-                        </Button>
-                        <Button onClick={handleUpdateHolding} style={{ backgroundColor: activeCategoryData.color }}>
-                            Update
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }

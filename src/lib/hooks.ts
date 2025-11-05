@@ -45,48 +45,15 @@ export function usePersistentState<T>(key: string, defaultValue: T, ttlMinutes: 
 /**
  * A custom hook to manage multiple portfolios with localStorage persistence.
  * Provides CRUD operations for portfolios and holdings.
+ *
+ * @deprecated Use useSupabasePortfolios from '@/lib/hooks/useSupabasePortfolios' instead
+ * This hook is kept for backward compatibility but will be removed in the future
  */
 export function usePortfolios() {
   const STORAGE_KEY = 'portfolios_state';
   const DEFAULT_STATE: PortfolioState = {
-    portfolios: [
-      {
-        id: 'default',
-        name: 'Main Portfolio',
-        createdAt: new Date().toISOString(),
-        holdings: [
-          {
-            ticker: 'AAPL',
-            name: 'Apple Inc.',
-            shares: 50,
-            avgPrice: 150.25,
-            currentPrice: 182.50,
-          },
-          {
-            ticker: 'MSFT',
-            name: 'Microsoft Corporation',
-            shares: 30,
-            avgPrice: 280.00,
-            currentPrice: 378.85,
-          },
-          {
-            ticker: 'GOOGL',
-            name: 'Alphabet Inc.',
-            shares: 20,
-            avgPrice: 120.50,
-            currentPrice: 138.25,
-          },
-          {
-            ticker: 'NVDA',
-            name: 'NVIDIA Corporation',
-            shares: 15,
-            avgPrice: 450.00,
-            currentPrice: 875.50,
-          },
-        ],
-      },
-    ],
-    activePortfolioId: 'default',
+    portfolios: [],
+    activePortfolioId: null,
   };
 
   const [state, setState] = useState<PortfolioState>(DEFAULT_STATE);
@@ -113,91 +80,39 @@ export function usePortfolios() {
     }
   }, [state]);
 
-  const createPortfolio = useCallback((name: string) => {
-    const newPortfolio: Portfolio = {
-      id: `portfolio_${Date.now()}`,
-      name,
-      createdAt: new Date().toISOString(),
-      holdings: [],
-    };
-    setState((prev) => ({
-      ...prev,
-      portfolios: [...prev.portfolios, newPortfolio],
-    }));
-    return newPortfolio.id;
+  const createPortfolio = useCallback((_name: string) => {
+    // This is deprecated - use useSupabasePortfolios instead
+    console.warn('usePortfolios is deprecated. Use useSupabasePortfolios instead.');
+    return '';
   }, []);
 
-  const updatePortfolio = useCallback((id: string, updates: Partial<Omit<Portfolio, 'id' | 'createdAt'>>) => {
-    setState((prev) => ({
-      ...prev,
-      portfolios: prev.portfolios.map((p) =>
-        p.id === id ? { ...p, ...updates } : p
-      ),
-    }));
+  const updatePortfolio = useCallback((_id: string, _updates: Partial<Portfolio>) => {
+    console.warn('usePortfolios is deprecated. Use useSupabasePortfolios instead.');
   }, []);
 
-  const deletePortfolio = useCallback((id: string) => {
-    setState((prev) => {
-      const newPortfolios = prev.portfolios.filter((p) => p.id !== id);
-      const newActiveId =
-        prev.activePortfolioId === id
-          ? newPortfolios[0]?.id || null
-          : prev.activePortfolioId;
-      return {
-        portfolios: newPortfolios,
-        activePortfolioId: newActiveId,
-      };
-    });
+  const deletePortfolio = useCallback((_id: string) => {
+    console.warn('usePortfolios is deprecated. Use useSupabasePortfolios instead.');
   }, []);
 
-  const setActivePortfolio = useCallback((id: string) => {
-    setState((prev) => ({
-      ...prev,
-      activePortfolioId: id,
-    }));
+  const setActivePortfolio = useCallback((_id: string) => {
+    console.warn('usePortfolios is deprecated. Use useSupabasePortfolios instead.');
   }, []);
 
-  const addHolding = useCallback((portfolioId: string, holding: PortfolioHolding) => {
-    setState((prev) => ({
-      ...prev,
-      portfolios: prev.portfolios.map((p) =>
-        p.id === portfolioId
-          ? { ...p, holdings: [...p.holdings, holding] }
-          : p
-      ),
-    }));
+  const addHolding = useCallback((_portfolioId: string, _holding: PortfolioHolding) => {
+    console.warn('usePortfolios is deprecated. Use useSupabasePortfolios instead.');
   }, []);
 
-  const updateHolding = useCallback((portfolioId: string, ticker: string, updates: Partial<PortfolioHolding>) => {
-    setState((prev) => ({
-      ...prev,
-      portfolios: prev.portfolios.map((p) =>
-        p.id === portfolioId
-          ? {
-              ...p,
-              holdings: p.holdings.map((h) =>
-                h.ticker === ticker ? { ...h, ...updates } : h
-              ),
-            }
-          : p
-      ),
-    }));
+  const updateHolding = useCallback((_portfolioId: string, _ticker: string, _updates: Partial<PortfolioHolding>) => {
+    console.warn('usePortfolios is deprecated. Use useSupabasePortfolios instead.');
   }, []);
 
-  const removeHolding = useCallback((portfolioId: string, ticker: string) => {
-    setState((prev) => ({
-      ...prev,
-      portfolios: prev.portfolios.map((p) =>
-        p.id === portfolioId
-          ? { ...p, holdings: p.holdings.filter((h) => h.ticker !== ticker) }
-          : p
-      ),
-    }));
+  const removeHolding = useCallback((_portfolioId: string, _ticker: string) => {
+    console.warn('usePortfolios is deprecated. Use useSupabasePortfolios instead.');
   }, []);
 
   const getActivePortfolio = useCallback(() => {
-    return state.portfolios.find((p) => p.id === state.activePortfolioId) || null;
-  }, [state]);
+    return null;
+  }, []);
 
   return {
     portfolios: state.portfolios,
@@ -212,3 +127,6 @@ export function usePortfolios() {
     removeHolding,
   };
 }
+
+// Export the new Supabase-based hook
+export { useSupabasePortfolios } from './hooks/useSupabasePortfolios';
